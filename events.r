@@ -70,7 +70,8 @@ ggplot(data=bear,aes(x=bear$daysFromOrigin, y=log(bear$EColi), col=Site)) +
   theme_bw()
 
 ggplot(data=bear[bear$geoBins!="binsHBC",],aes(x=Date, y=logEColi, col=Site)) + 
-  geom_jitter(alpha=.7) + facet_wrap(~geoBins,nrow=4) +
+  geom_jitter(alpha=.7) + facet_wrap(~geoBins,nrow=4) + 
+  geom_line(aes(y=bear[bear$geoBins!="binsHBC",]$tempC/3,x=Date)) +
   theme_bw()
 
 ggplot(data=bear[bear$geoBins=="binsLBC",],aes(x=Date, y=logEColi, col=Site)) + 
@@ -133,7 +134,7 @@ bearTS2 <- ts(bearTS2)
 
 # This is my "mental" model
 fit <- arima(bearTS2, 
-             c(4, 0, 1),seasonal = list(order = c(1, 1, 0), period = 24))
+             c(4, 1, 1),seasonal = list(order = c(1, 1, 0), period = 24))
 pred <- predict(fit,n.ahead=52)
 ts.plot(bearTS2,pred$pred,log='y', lty=c(1,3))
 
@@ -143,7 +144,7 @@ heyo <- sarima(bearTS2, 4,0,1,1,1,0,24)
 
 fit <- arima(bearTS2, 
              c(5, 0, 1),seasonal = list(order = c(1, 1, 0), period = 24))
-pred <- predict(fit,n.ahead=52)
+pred <- predict(fit,n.ahead=140)
 ts.plot(bearTS2,pred$pred,log='y', lty=c(1,3))
 
 heyo <- sarima(bearTS2, 4,0,1,1,1,0,24)
