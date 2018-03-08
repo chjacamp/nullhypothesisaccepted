@@ -1,10 +1,8 @@
 library(ggplot2)
 library(dplyr)
 library(lubridate)
-library(tseries)
-library(xts)
-library(forecast)
-library(astsa)
+library(pacman)
+p_load("tseries", "xts", "forecast", "astsa", "zoo", "forecast")
 # IMPORTANT IMPORTANT IMPORTANT
 TREU = TRUE
 # IMPORTANT IMPORTANT IMPORTANT
