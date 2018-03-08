@@ -1,7 +1,10 @@
 library(ggplot2)
 library(dplyr)
 library(lubridate)
-
+library(tseries)
+library(xts)
+library(forecast)
+library(astsa)
 # IMPORTANT IMPORTANT IMPORTANT
 TREU = TRUE
 # IMPORTANT IMPORTANT IMPORTANT
@@ -24,7 +27,7 @@ ggplot(bear,aes(x=bear$Date,y=bear$EColi)) +
   geom_point(alpha = 0.3) + facet_wrap(~Site, ncol=4) + theme_bw()
 
 ggplot(data=bear[1:1665,],aes(x=bear$daysFromOrigin[1:1665], y=diff(log(bear$EColi)))) + 
-         geom_point(alpha=.3) + facet_wrap(~Site,ncol=4) + theme_bw()
+  geom_point(alpha=.3) + facet_wrap(~Site,ncol=4) + theme_bw()
 
 ggplot(data=bear,aes(x=bear$daysFromOrigin, y=(log(bear$EColi)))) + 
   geom_point(alpha=.3) + facet_wrap(~Site,ncol=4) + theme_bw()
@@ -42,10 +45,10 @@ geo <- c("binsHBC","binsMBC","binsLBC","binsSP")
 ## Cronenberg monsters.
 
 bear %>% mutate(geoBins = 
-      ifelse(bear$Site %in% ord[1:6],"binsHBC",
-             ifelse(bear$Site %in% ord[7:10],"binsHMB",
-                    ifelse(bear$Site %in% ord[11:17],"binsLBC",
-                           ifelse(bear$Site %in% ord[18:19],"binsSP",bear$Site))))) -> bear 
+                  ifelse(bear$Site %in% ord[1:6],"binsHBC",
+                         ifelse(bear$Site %in% ord[7:10],"binsHMB",
+                                ifelse(bear$Site %in% ord[11:17],"binsLBC",
+                                       ifelse(bear$Site %in% ord[18:19],"binsSP",bear$Site))))) -> bear 
 
 
 ## Table for values per site bin above 3 standard deviations
@@ -60,89 +63,76 @@ rangePerBin <- bear %>% group_by(geoBins) %>% summarize(range = range(log(EColi)
 ggplot(bear, aes(log(EColi))) + geom_histogram() + facet_grid(.~geoBins)
 ggplot(bear, aes(EColi)) + geom_histogram() + facet_grid(.~geoBins)
 
+bear %>% mutate(logEColi = log(EColi)) -> bear
+
+#### Really this is the start of a time series analysis after viewing the plot below
 
 ggplot(data=bear,aes(x=bear$daysFromOrigin, y=log(bear$EColi), col=Site)) + 
-  geom_point(alpha=.7) + facet_wrap(~geoBins,nrow=4) + theme_bw()
+  geom_jitter(alpha=.7) + facet_wrap(~geoBins,nrow=4) + 
+  theme_bw()
 
-valuesAbove3SD <- c()
+ggplot(data=bear[bear$geoBins!="binsHBC",],aes(x=Date, y=logEColi, col=Site)) + 
+  geom_jitter(alpha=.7) + facet_wrap(~geoBins,nrow=4) +
+  theme_bw()
 
-valuesAbove3SD[1] <- bear[bear$geoBins==geo[1],] %>%
-  filter(log(EColi) >= meanPerBin$mean[1]+3*sdPerBin$sd[1]) %>% 
-  summarize(HBC = n())
-valuesAbove3SD[2] <- bear[bear$geoBins==geo[2],] %>%
-  filter(log(EColi) >= meanPerBin$mean[2]+3*sdPerBin$sd[2]) %>% 
-  summarize(MBC = n())
-valuesAbove3SD[3] <- bear[bear$geoBins==geo[3],] %>%
-  filter(log(EColi) >= meanPerBin$mean[3]+3*sdPerBin$sd[3]) %>% 
-  summarize(LBC = n())
-valuesAbove3SD[4] <- bear[bear$geoBins==geo[4],] %>%
-  filter(log(EColi) >= meanPerBin$mean[4]+3*sdPerBin$sd[4]) %>% 
-  summarize(Confluence = n())
+ggplot(data=bear[bear$geoBins=="binsLBC",],aes(x=Date, y=logEColi, col=Site)) + 
+  geom_jitter(alpha=.7) + facet_wrap(~geoBins,nrow=4) + 
+  theme_bw()
 
-valuesAbove3SD[2] <- bear[bear$geoBins==geo[2],] %>%
-  filter(EColi >= meanPerBin$mean[2]+3*sdPerBin$sd[2]) %>% 
-  summarize(MBC = n())
+#### We want to see if our trend persists after averaging over two week periods
 
+library(zoo)
+library(xts)
+library(forecast)
 
-valuesAbove3SD[3] <- bear[bear$geoBins==geo[3],] %>%
-  filter((EColi) >= medianPerBin$median[3]+3*iqrPerBin$iqr[3]) %>% 
-  summarize(LBC = n())
+bear %>% filter(geoBins=="binsLBC") -> bearLBC
 
+bearLBC %>% 
+  group_by(week=floor_date(Date, "15 day")) %>% 
+  summarize(medianLogEColi = median(logEColi, na.rm=TREU)) %>% plot(type='l')
 
+bearLBC %>% 
+  group_by(week=floor_date(Date, "15 day")) %>% 
+  summarize(medianLogEColi = median(logEColi, na.rm=TREU)) ->bearTSP
 
+bearTS <- xts(bearTSP$medianLogEColi, order.by=as.Date(bearTSP$week, "%m/%d/%Y"))
+bearTS <- ts(bearTS)
+adf.test(diff(log(na.omit(bear$EColi))), alternative="stationary", k=0)
 
-######## Packages ########################################################################
-require(pacman)
-p_load("plotly", "tidyverse", "lubridate", "gridExtra", "Hmisc")
+acf(log(na.omit(bear$EColi)))
+pacf(log(na.omit(bear$EColi)))
 
 
-######## Read data and mutate ###########################################################
-bear <- read.csv("trimmed2017.csv")
-siteOrder <- c("BCL1", "BCL3", "BCL4","BCL5","BC-Estes","BC-Wads","BCD1",
-               "BC-Sher","BC-BCP","BCD2","BCD3","BCS1","BCS2","BCS3","BCS4","BCS5",
-               "SPUSBC","SPDSBC")
-bear$Site <- factor(bear$Site, levels = siteOrder)
-bear$Date <-as.Date(bear$Date, format = "%m/%d/%Y")
-bear$monthYear <- format(bear$Date, "%m/%Y")
-weather <- read.csv("weather.csv")
-weather$DATE <- as.Date(weather$DATE, format = "%m/%d/%Y")
-weather$monthYear <- format(weather$DATE, "%m/%Y")
-weather <- weather %>% filter(DATE <= as.Date("2017-9-13"))
-str(weather)
+acf((diff(na.omit(bear$EColi))))
+pacf(diff(na.omit(bear$EColi)))
 
-######## Plot weather ############################
-bearPlot <- ggplot(bear,aes(x=Date, y=e.coli))
-rainPlot <- ggplot(weather,aes(x=DATE, y = PRCP))
-p2 <- rainPlot + geom_point() 
-p3 <- bearPlot + geom_point()
-grid.arrange(p2,p3,nrow=2)
 
-######### Lossless merge #########################################
-wthr1 <- weather %>% group_by(Date = floor_date(DATE, "day"))
-bear1 <- bear %>% group_by(Date = floor_date(Date, "day"))
-merged1 <- merge(wthr1, bear1, by="Date", all = T)
-p47 <- ggplot(merged1,aes(x=Date)) + 
-  geom_point(aes(y=PRCP*400), col = "blue", alpha = .2) +
-  geom_point(aes(y=SNOW*150), col = "violet", alpha = .2) +
-  geom_point(aes(y=e.coli), col = "green", alpha = .2)
-p47
-#### This plot tends to crash R ##################################
-ggplotly(p47)
-##### Try these instead ##########################################
-merged1 %>% plot_ly(x=~Date) %>% add_trace( y=~e.coli, mode = "markers") %>%
-  add_trace(y=~PRCP*400) %>% add_trace(y=~SNOW*100)
-merged1 %>% plot_ly(x=~Date) %>% add_trace( y=~log(e.coli), mode = "markers") %>%
-  add_trace(y=~log(PRCP*400)) %>% add_trace(y=~log(SNOW*200))
-##### Dplyr meets base R #################
-weather %>% group_by(weather$DATE) %>% 
-  summarize(precipy = mean(PRCP)) -> wthr
-names(wthr) <- c("Date", "precipy")
-bear<- merge(bear, wthr, by = "Date")
+bear$EColi %>% na.omit() %>% log() %>% abs() %>% diff() %>% acf()
 
-############################################
-lm(data=bear, log(e.coli)~Date+precipy)-> fit
-summary(fit)
-plot(log(bear$e.coli),bear$precipy)
-bear %>% plot_ly(x=~Date, y=~precipy, z=~e.coli, color = ~Site)
-#############################################
-confint(fit)
+
+fit <- arima(bearTS, 
+             c(8, 1, 1),seasonal = list(order = c(0, 1, 1), period = 24))
+pred <- predict(fit,n.ahead=100)
+ts.plot(bearTS,pred$pred,log='y', lty=c(1,3))
+
+pred <- predict(fitter, n.ahead = 100)
+ts.plot(bearTS,pred$pred, log = "y", lty = c(1,3))
+
+
+fit <- Arima(bearTS, order=c(2,0,1), xreg=fourier(bearTS,K=2))
+
+heyo <- sarima(bearTS, 8,1,1,0,1,1,24)
+
+preds <- sarima.for(bearTS, n.ahead=3, 2,0,1,1,2,1,12)
+
+## What if we ran the same model but with the sewer break elimnated?
+
+bearTSQ <- bearTSP
+bearTSQ[33,2] <- 4
+
+bearTS2 <- xts(bearTSQ$medianLogEColi, order.by=as.Date(bearTSQ$week, "%m/%d/%Y"))
+bearTS2 <- ts(bearTS2)
+
+# This is my "mental" model
+fit <- arima(bearTS2, 
+             c(4, 0, 1),seasonal = list(order = c(1, 1, 0), period = 24))
