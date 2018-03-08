@@ -136,3 +136,23 @@ bearTS2 <- ts(bearTS2)
 # This is my "mental" model
 fit <- arima(bearTS2, 
              c(4, 0, 1),seasonal = list(order = c(1, 1, 0), period = 24))
+pred <- predict(fit,n.ahead=52)
+ts.plot(bearTS2,pred$pred,log='y', lty=c(1,3))
+
+heyo <- sarima(bearTS2, 4,0,1,1,1,0,24)
+
+# The model looks better in diagnostics, however:
+
+fit <- arima(bearTS2, 
+             c(5, 0, 1),seasonal = list(order = c(1, 1, 0), period = 24))
+pred <- predict(fit,n.ahead=52)
+ts.plot(bearTS2,pred$pred,log='y', lty=c(1,3))
+
+heyo <- sarima(bearTS2, 4,0,1,1,1,0,24)
+
+preds <- sarima.for(bearTS, n.ahead=14, 1,0,1,0,1,1,12)
+
+ggplot(data=bearTSP,aes(x=bearTSP$week, y=bearTSP$medianLogEColi)) + 
+  geom_jitter(alpha=.7) + geom_line(data=bearTS2, aes(y=bearTS2[1:88]))
+theme_bw()
+
