@@ -127,7 +127,10 @@ sarima(bearTS, 1, 0, 4, 0, 0, 2, 21)
 newFit <- arima(bearTS, order = c(1,0,4),
                 seasonal = list(order = c(0,0,2), period = 21 ))
 ##### oh yeah
-hist(newFit$residuals)
+x <- seq(-3 ,3, .1)
+newRes <- newFit$residuals
+hist(newRes)
+lines(x, 43*dnorm(x, 0, sd(newRes)), col = 2)
 
 bear$EColi %>% na.omit() %>% log() %>% abs() %>% diff() %>% acf()
 
