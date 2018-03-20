@@ -80,6 +80,7 @@ p <- ggplot(data=bear[bear$geoBins!="binsHBC",],aes(x=Date, y=logEColi, col=Site
   geom_jitter(alpha=.7) + facet_wrap(~geoBins,nrow=4) + 
   geom_line(aes(y=bear[bear$geoBins!="binsHBC",]$tempC/3,x=Date)) +
   theme_bw()
+p
 ggplot(data=bear[bear$geoBins=="binsLBC",],aes(x=Date, y=logEColi, col=Site)) + 
   geom_jitter(alpha=.7) + facet_wrap(~geoBins,nrow=4) + 
   theme_bw()
@@ -90,25 +91,34 @@ ggplot(data=bear[bear$geoBins=="binsLBC",],aes(x=Date, y=logEColi, col=Site)) +
 bear %>% filter(geoBins=="binsLBC") -> bearLBC
 
 bearLBC %>% 
-  group_by(week=floor_date(Date, "15 day")) %>% 
+  group_by(week=floor_date(Date, "14 day")) %>% 
   summarize(medianLogEColi = median(logEColi, na.rm=TREU)) %>% plot(type='l')
 
 bearLBC %>% 
-  group_by(week=floor_date(Date, "15 day")) %>% 
+  group_by(week=floor_date(Date, "14 day")) %>% 
   summarize(medianLogEColi = median(logEColi, na.rm=TREU)) ->bearTSP
 
 
 bearTS <- xts(bearTSP$medianLogEColi[-70], order.by=as.Date(bearTSP$week, "%m/%d/%Y")[-70])
 bearTS <- ts(bearTS)
-adf.test(diff(log(na.omit(bear$EColi))), alternative="stationary", k=0)
 
-acf(log(na.omit(bear$EColi)))
-pacf(log(na.omit(bear$EColi)))
+adf.test(bearTS, alternative="stationary", k=0)
 
 
-acf((diff(na.omit(bear$EColi))))
-pacf(diff(na.omit(bear$EColi)))
+## Note the almost perfect seasonality in acf at lag 20
+acf(bearTS, lag.max = 120)
+pacf(bearTS, lag.max = 120)
 
+
+### these didnt really help
+acf(diff(bearTS, 20), lag.max = 120)
+pacf(diff(bearTS, 20), lag.max = 120)
+
+### trying w/o seasonal difference
+sarima(bearTS, 0, 0, 2, 0, 0, 2, 21)
+
+newFit <- arima(bearTS, order = c(0,0,2),
+                seasonal = list(0,0,2), )
 
 bear$EColi %>% na.omit() %>% log() %>% abs() %>% diff() %>% acf()
 
