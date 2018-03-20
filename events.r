@@ -105,7 +105,7 @@ bearTS <- ts(bearTS)
 adf.test(bearTS, alternative="stationary", k=0)
 
 
-## Note the almost perfect seasonality in acf at lag 20
+## Note the seasonality in acf
 acf(bearTS, lag.max = 120)
 pacf(bearTS, lag.max = 120)
 
@@ -116,9 +116,18 @@ pacf(diff(bearTS, 20), lag.max = 120)
 
 ### trying w/o seasonal difference
 sarima(bearTS, 0, 0, 2, 0, 0, 2, 21)
+### trying a bunch of stuff
+sarima(bearTS, 0, 0, 2, 1, 1, 2, 21)
+sarima(bearTS, 0, 0, 5, 0, 0, 2, 21)
+sarima(bearTS, 1, 1, 1, 1, 1, 1, 21)
+#### these twoo look pretty yeah?
+sarima(bearTS, 1, 0, 4, 0, 0, 1, 21)
+sarima(bearTS, 1, 0, 4, 0, 0, 2, 21)
 
-newFit <- arima(bearTS, order = c(0,0,2),
-                seasonal = list(0,0,2), )
+newFit <- arima(bearTS, order = c(1,0,4),
+                seasonal = list(order = c(0,0,2), period = 21 ))
+##### oh yeah
+hist(newFit$residuals)
 
 bear$EColi %>% na.omit() %>% log() %>% abs() %>% diff() %>% acf()
 
