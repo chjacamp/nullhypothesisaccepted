@@ -1,7 +1,7 @@
 library(pacman)
 p_load("tseries", "xts", "forecast", "astsa", "zoo", "forecast", 
        "tidyverse", "gridExtra", "lubridate", "mice", "car", "rgl",
-       "zoo", "xts", "forecast", "imputeTS")
+       "zoo", "xts", "forecast", "imputeTS", "plotly")
 ##### god ################
 TREU = T
 #### did you know you can just write T ######
@@ -35,37 +35,50 @@ rangePerBin <- bear %>% group_by(geoBins) %>% summarize(range = range(log(EColi)
 bear %>% mutate(logEColi = log(EColi)) -> bear
 bear %>% filter(geoBins=="binsLBC") -> bearLBC
 bearLBC %>% 
-  group_by(week=floor_date(Date, "14 day")) %>% 
+  group_by(week=floor_date(Date, "15 days")) %>% 
   summarize(medianLogEColi = median(logEColi, na.rm=TREU)) -> bearTSP
 ########## Generating weeks ######################################
 date <- as.Date("2013-05-01")
 date_list <- c(date)
 while (date < bear$Date[nrow(bear)]){
-  date <- date %m+% weeks(2) 
+  date <- date %m+% days(15) 
   date_list <- c(date_list,date)
 }
 date_list <- as.Date(date_list, format = "%m/%d/%Y")
 df_1 <- data.frame(week=date_list, stringsAsFactors = F)
 bearTSP_full <- merge(df_1,bearTSP, by = "week", all = T)
-tmpImp <- bearTSP_full$medianLogEColi
+bearTSP_full %>% group_by(week=floor_date(week, "15 days")) %>% 
+  summarize(medianLogEColi = median(medianLogEColi, na.rm=T)) -> trim
+tmpImp <- trim$medianLogEColi
 impTS <- ts(tmpImp)
 ##### Check out the all the NAs ###########
 way<- length(impTS)
 no <- length(which(is.na(impTS)))
 no/way
-### thats fucking half, oh god
+### thats bettter heyy!!!!!
 ##### imputing using sick package #########
 newTS <- na.interpolation(impTS)
 
 #### for comparison #########
 bearTS <- xts(bearTSP$medianLogEColi, order.by=as.Date(bearTSP$week, "%m/%d/%Y"))
 bearTS <- ts(bearTS)
+par(mfrow=c(2,1))
 plot(newTS)
 plot(bearTS)
+par(mfrow=c(1,1))
 #### Seasonal but definitely not stationary
 acf((newTS), lag.max = 120)
 pacf(newTS, lag.max = 120)
+### we should difference wrt the 25th ish lag?
+acf(diff(newTS, 25), lag.max = 120)
+pacf(diff(newTS, 25), lag.max = 120)
+### this doesnt look good
+plot(diff(newTS, 25))
+
+### I tried
+sarima(newTS, 0, 0, 6, 0, 0, 3, 25)
+
 ### Can this test Fail to reject anything?
 ### stingy ass test doesn't like the null hypothesis
 adf.test(newTS)
-
+adf.test(diff(newTS,25))
