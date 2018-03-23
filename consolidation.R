@@ -2,11 +2,15 @@ library(plotly)
 library(pacman)
 p_load("tseries", "xts", "forecast", "astsa", "zoo", "forecast", 
        "tidyverse", "gridExtra", "lubridate", "mice", "car", "rgl",
-       "zoo", "xts", "forecast","astsa","pracma")
+       "zoo", "xts", "forecast","astsa","pracma","extrafont","RColorBrewer","wesanderson")
 
 TREU = TRUE
 
-## Data Imputation
+#Only run once
+#font_import()
+#loadfonts(device = "win")
+
+## Data Imputation, I dislike this method after looking at some of its choices of imputation
 
 to_imput <- read.csv("trimmed2017.csv")
 tmpImp <- data.frame(to_imput$e.coli, to_imput$tempC)
@@ -52,9 +56,8 @@ bear %>% mutate(geoBins =
                                        ifelse(bear$Site %in% ord[18:19],"binsSP",bear$Site))))) -> bear 
 
 
-## Table for values per site bin above 3 standard deviations magnitude; none reach this threshold.
+## Some descriptive statistics
 with(bear,table(geoBins))
-
 medianPerBin <- bear %>% group_by(geoBins) %>% summarize(median = median(log(EColi),na.rm=TREU))
 iqrPerBin <- bear %>% group_by(geoBins) %>% summarize(iqr = IQR(log(EColi),na.rm=TREU))
 meanPerBin <- bear %>% group_by(geoBins) %>% summarize(mean = mean(log(EColi),na.rm=TREU))
@@ -157,23 +160,82 @@ for(i in 1:92) {
   rep(NA,8) -> graph_data[(9*i-7):(9*i),2]
 }
 
-ggplot(data=bear[bear$geoBins %in% c("binsLBC"),], aes(x=Date, y=logEColi)) + 
+ggplot(data=bearLBC, aes(x=Date, y=logEColi)) + 
   geom_jitter(alpha=.4,aes(col=Site)) + facet_wrap(~geoBins,nrow=2) +
   geom_line(col="aquamarine3",size=1,alpha=1) + 
   geom_point(col="coral3",aes(y=graph_data$graphit,x=graph_data$Dates)) + 
   geom_line(col="coral4", size=1.25, alpha=.7,aes(y=graph_data$graphit,x=graph_data$Dates))+
   theme_bw()
 
+
+
+## It would be nice to have an idea how linearity affects the median/mean 
+
+## We need to convert each day of each 2 week period into a numeric value 1:14
+
+# Some code that I thought may work but is actually pretty difficult
+
+# Here's the basic idea:
+as.POSIXlt(bearLBC$Date)[1]$wday
+
+# Vectorizing the above operation
+bearLBC$daysOfBiWeek <- as.POSIXlt(bearLBC$Date)$wday
+
+# Adding 7 to the second week - hard if not undoable, maybe ifelse loop?
+
+
+bearLBC %>% group_by(floor_date(Date,"14 days")) %>% 
+  mutate(timediff = difftime(ceiling_date(Date,"1 days"), 
+                             floor_date(Date, "14 days"), units="days")) -> bearLBC
+
+bearLBC$daysOfBiWeekA <-ifelse(bearLBC$timediff > 7, bearLBC$daysOfBiWeekA <- bearLBC$daysOfBiWeek + 7, 
+       bearLBC$daysOfBiWeekA <- bearLBC$daysOfBiWeek)
+
+
+
+# This is unrealistic but works for x: rep(1:14,60)[1:828], otherwise it is a choice 
+# as to whether we bin monthly or weekly
+
+p <- ggplot(data = bearLBC, aes(x = daysOfBiWeekA, y = logEColi, color = Site)) + 
+  scale_color_manual(values=c(wes_palette(n=4,"FantasticFox"),
+                             wes_palette(n=3,"Moonrise2"))) +
+  geom_point(size=2) +
+  geom_line() +
+  facet_wrap(~factor(floor_date(bearLBC$Date,"14 day"))) + 
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    text=element_text(size=18,  family="Georgia"),
+    plot.title = element_text(hjust = 0.5)
+  ) +
+  ggtitle("BiWeekly Readings of E. coli in the Lower Bear Creek Area") +
+  xlab("BiWeekly Periods") + ylab("Log E. coli")
+
+p
+
+# Not sure why code below isn't working
+
+p+geom_point(aes(x=rep(1,828),y=rep(bearTSP$medianLogEColi,1,each=9)), col="red",size=2)
+
+
+
+
+
 ## On to modeling as a time series
 
-## Note the seasonality in acf
+## Note the seasonality in acf, suggesting MA 1 or 2, AR 1 or 2
 acf(bearTS, lag.max = 120)
 pacf(bearTS, lag.max = 120)
 
-# This is MA 1 or 2, AR 1 or 2
+# But they look much better with a first difference, suggests AR 1 and MA 0 or 1
+
+acf(diff(bearTS), lag.max = 120)
+pacf(diff(bearTS), lag.max=120)
 
 ## We take a look at differencing wrt to the year (since we chose bi-weekly, 2*26=52 weeks or 1 year),
 ## we see promising results, and may not need seasonal differencing:
+
+
 
 acf(diff(bearTS, 26), lag.max = 120)
 pacf(diff(bearTS, 26), lag.max = 120)
@@ -201,9 +263,35 @@ fit <- arima(bearTS,
 pred <- predict(fit,n.ahead=52)
 ts.plot(bearTS,pred$pred,log='y', lty=c(1,3))
 autoplot(forecast(fit))
-sarima(bearTS, 1,1,1,1,1,0,26)
+sarima(bearTS, 1,0,1,1,1,0,26)
 
-## These seem alright
+
+
+
+#Some alternative models
+sarima(bearTS, 1,1,0,1,1,0,26)
+fit <- arima(bearTS, 
+             c(1, 1, 0),seasonal = list(order = c(1, 1, 0), period = 26))
+pred <- predict(fit,n.ahead=50)
+ts.plot(bearTS,pred$pred,log='y', lty=c(1,3))
+autoplot(forecast(fit))
+
+sarima(bearTS, 1,1,0,1,1,0,26)
+fit <- arima(bearTS, 
+             c(1, 1, 0),seasonal = list(order = c(1, 1, 0), period = 26))
+pred <- predict(fit,n.ahead=52)
+ts.plot(bearTS,pred$pred,log='y', lty=c(1,3))
+
+
+
+sarima(bearTS, 1,0,1,1,1,0,26)
+
+
+
+## Diagonstics  -seems relatively normal
 hist(fit$residuals[24:92])
 lines(seq(-3,3,.1), 70*dnorm(seq(-3,3,.1),0, sd(fit$residuals[24:92])), col = 2)
 qqnorm(fit$residuals[24:92])
+
+# Fitted vs residuals do not look great
+qplot(y=fit$residuals[24:92],x=fitted.values(fit)[24:92])
