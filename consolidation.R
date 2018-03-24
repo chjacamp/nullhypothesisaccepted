@@ -2,7 +2,8 @@ library(plotly)
 library(pacman)
 p_load("tseries", "xts", "forecast", "astsa", "zoo", "forecast", 
        "tidyverse", "gridExtra", "lubridate", "mice", "car", "rgl",
-       "zoo", "xts", "forecast","astsa","pracma","extrafont","RColorBrewer","wesanderson")
+       "zoo", "xts", "forecast","astsa","pracma","extrafont","RColorBrewer",
+       "wesanderson","viridis")
 
 TREU = TRUE
 
@@ -196,15 +197,15 @@ bearLBC$daysOfBiWeekA <-ifelse(bearLBC$timediff > 7, bearLBC$daysOfBiWeekA <- be
 # This is unrealistic but works for x: rep(1:14,60)[1:828], otherwise it is a choice 
 # as to whether we bin monthly or weekly
 
+cbPalette <- viridis(20,option="viridis")
 p <- ggplot(data = bearLBC, aes(x = daysOfBiWeekA, y = logEColi, color = Site)) + 
-  scale_color_manual(values=c(wes_palette(n=4,"FantasticFox"),
-                             wes_palette(n=3,"GrandBudapest2"))) +
-  geom_point(size=3) +
+  scale_colour_manual(values=cbPalette[6:13]) +
+  geom_point(size=3,alpha=.7) +
   geom_line() +
   facet_wrap(~factor(floor_date(bearLBC$Date,"14 day"))) + 
   theme(
-    strip.background = element_blank(),
     strip.text.x = element_blank(),
+    strip.background = element_blank(),
     text=element_text(size=18,  family="Georgia"),
     plot.title = element_text(hjust = 0.5)
   ) +
