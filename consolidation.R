@@ -198,8 +198,8 @@ bearLBC$daysOfBiWeekA <-ifelse(bearLBC$timediff > 7, bearLBC$daysOfBiWeekA <- be
 
 p <- ggplot(data = bearLBC, aes(x = daysOfBiWeekA, y = logEColi, color = Site)) + 
   scale_color_manual(values=c(wes_palette(n=4,"FantasticFox"),
-                             wes_palette(n=3,"Moonrise2"))) +
-  geom_point(size=2) +
+                             wes_palette(n=3,"GrandBudapest2"))) +
+  geom_point(size=3) +
   geom_line() +
   facet_wrap(~factor(floor_date(bearLBC$Date,"14 day"))) + 
   theme(
@@ -213,12 +213,21 @@ p <- ggplot(data = bearLBC, aes(x = daysOfBiWeekA, y = logEColi, color = Site)) 
 
 p
 
-# Not sure why code below isn't working
+# We can retrieve the group row numbers, then create a vector using this info, difference it,
+# and then use the rep function to repeat the median values an appropriate number of times.
 
-p+geom_point(aes(x=rep(1,828),y=rep(bearTSP$medianLogEColi,1,each=9)), col="red",size=2)
+bearpos <- bearLBC %>% arrange(Date) %>%
+  group_by(floor_date(Date,"14 day")) %>%
+  mutate(positionInCategory=1:n())
+bearpos$positionInCategory
 
+cuts <- which(bearpos$positionInCategory==1)
+diffcuts <- diff(cuts)
 
+medianValues <- rep(bearTSP$medianLogEColi,c(diffcuts,14))
 
+p+geom_point(aes(x=rep(0,828),y=medianValues), col="blue",size=2,shape=25,
+             fill =wes_palette(n=1,name="Moonrise3"))
 
 
 ## On to modeling as a time series
