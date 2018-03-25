@@ -6,10 +6,27 @@ p_load("tseries", "xts", "forecast", "astsa", "zoo", "forecast",
        "wesanderson","viridis")
 
 TREU = TRUE
+#Some graphics settings
+palette1 <- viridis(n=26,option="magma")
+palette2 <- c(wes_palette(type="discrete",n=4,name="GrandBudapest2"),
+              wes_palette(type="discrete",n=5,name="Zissou"),
+              wes_palette(type="discrete",n=5,name="FantasticFox"),
+              wes_palette(type="discrete",n=5,name="Rushmore"))
+theme_ch <- function () { 
+  theme_bw(base_size=14, base_family="Georgia") %+replace% 
+    theme(
+      plot.title = element_text(hjust = 0.5,vjust=4),
+      panel.background = element_rect(fill = "white", colour = NA),
+      panel.grid.major = element_line(colour = "grey92"), 
+      panel.grid.minor = element_line(colour = "grey92", size = .25), 
+      strip.background = element_rect(fill = "grey85", colour = "grey20"), 
+      legend.key = element_rect(fill = "white", colour = NA))
+}
+
 
 #Only run once
 #font_import()
-#loadfonts(device = "win")
+loadfonts(device = "win")
 
 ## Data Imputation, I dislike this method after looking at some of its choices of imputation
 
@@ -44,7 +61,6 @@ binsHBC <- ord[1:6]
 binsMBC <- ord[7:10]
 binsLBC <- ord[11:17]
 binsSP <- ord[18:19] 
-
 geo <- c("binsHBC","binsMBC","binsLBC","binsSP")
 
 ## Nesting like mama bird but all of her little bird children were horrible
@@ -56,6 +72,14 @@ bear %>% mutate(geoBins =
                                 ifelse(bear$Site %in% ord[11:17],"binsLBC",
                                        ifelse(bear$Site %in% ord[18:19],"binsSP",bear$Site))))) -> bear 
 
+#Create new factor for facet labels. 
+
+bear$geoBins2 <- factor(bear$geoBins, labels=c( "Higher Bear Creek Area","Mid Bear Creek Area",
+                                                "Lower Bear Creek Area","South Platte Egress into Bear Creek"))
+
+#Just lower bear creek area
+
+bear %>% filter(geoBins == "binsLBC") -> bearLBC
 
 ## Some descriptive statistics
 with(bear,table(geoBins))
@@ -73,23 +97,26 @@ ggplot(bear, aes(log(EColi))) + geom_histogram() + facet_grid(.~geoBins)
 
 ## Some plots indicating time series structure
 
-ggplot(data=bear,aes(x=bear$daysFromOrigin, y=log(bear$EColi), col=Site)) + 
-  geom_jitter(alpha=.7) + facet_wrap(~geoBins,nrow=4) + 
-  theme_bw()
+ggplot(data=bear,aes(x=bear$Date, y=log(bear$EColi), col=Site)) + 
+  geom_jitter(alpha=.8) + facet_wrap(~geoBins2,nrow=4,labeller=label_value) + 
+  xlab("Date") +
+  ylab("Log E. coli") + 
+  ggtitle("E. coli Over Time Per Geographic Area") +
+  theme_ch()+
+  scale_color_manual(values = palette1)
 
 ggplot(data=bear[bear$geoBins!="binsHBC",],aes(x=Date, y=logEColi, col=Site)) + 
-  geom_jitter(alpha=.7) + facet_wrap(~geoBins,nrow=4) + 
+  geom_jitter(alpha=.7) + facet_wrap(~geoBins2,nrow=4,labeller=label_value) + 
   geom_line(aes(y=bear[bear$geoBins!="binsHBC",]$tempC/3,x=Date)) +
-  theme_bw()
+  xlab("Date") +
+  ylab("Log E. coli") + 
+  ggtitle("E. coli Over Time Per Geographic Area") +
+  theme_ch() +
+  scale_color_manual(values = palette1[5:17])
 
 ggplot(data=bear[bear$geoBins=="binsLBC",],aes(x=Date, y=logEColi)) + 
   geom_point(alpha=.7) + facet_wrap(~geoBins,nrow=4) + 
   theme_bw()
-
-## We want to see if our trend persists after averaging over two week periods, focusing on 
-## the lower break creek area.
-
-bear %>% filter(geoBins=="binsLBC") -> bearLBC
 
 ## Notice here that the median smooths out the measurement and decreases the peaks - this 
 ## is explored in more detail below after the creation of a time series.
@@ -126,16 +153,16 @@ for(i in 1:92) {
 #graph_data$daysFromOrigin <- with(graph_data, interp1(1:828, daysFromOrigin, 1:828, "linear"))
 #graph_data$daysFromOrigin <- as.Date(graph_data$daysFromOrigin,origin="2013-05-01")
 
-## Maroon is the median interpolation, green is the log EColi raw data
+#We can see that the median below really undercuts some of the behavior of the graph.
 
-ggplot(data=bear[bear$geoBins %in% c("binsLBC"),], aes(x=Date, y=logEColi)) + 
-  geom_jitter(alpha=.4,aes(col=Site)) + facet_wrap(~geoBins,nrow=2) +
-  geom_line(col="aquamarine3",size=1,alpha=1) + 
+ggplot(data=bearLBC, aes(x=Date, y=logEColi)) + 
+  facet_wrap(~geoBins2,nrow=2, labeller=label_value) +
+  geom_line(col=palette2[16],size=1,alpha=1) + 
   geom_point(col="coral3",aes(y=graph_data$graphit,x=graph_data$Dates)) + 
-  geom_line(col="coral4", size=1.25, alpha=.7,aes(y=graph_data$graphit,x=graph_data$Dates))+
-  theme_bw()
+  geom_line(col=palette2[4], size=1.25, alpha=.8,aes(y=graph_data$graphit,x=graph_data$Dates))+
+  theme_ch() + ylab("Log E. coli")
 
-ggplot(data=bear[bear$geoBins %in% c("binsLBC"),], aes(x=Date, y=logEColi)) + 
+ggplot(data=bearLBC, aes(x=Date, y=logEColi)) + 
   geom_jitter(alpha=.4,aes(col=Site)) + facet_wrap(~geoBins,nrow=2) +
   #geom_line(col="aquamarine3",size=1,alpha=1) + 
   geom_point(col="coral3",aes(y=graph_data$graphit,x=graph_data$Dates)) + 
@@ -162,28 +189,23 @@ for(i in 1:92) {
 }
 
 ggplot(data=bearLBC, aes(x=Date, y=logEColi)) + 
-  geom_jitter(alpha=.4,aes(col=Site)) + facet_wrap(~geoBins,nrow=2) +
-  geom_line(col="aquamarine3",size=1,alpha=1) + 
+  facet_wrap(~geoBins2,nrow=2, labeller=label_value) +
+  geom_line(col=palette2[16],size=1,alpha=1) + 
   geom_point(col="coral3",aes(y=graph_data$graphit,x=graph_data$Dates)) + 
-  geom_line(col="coral4", size=1.25, alpha=.7,aes(y=graph_data$graphit,x=graph_data$Dates))+
-  theme_bw()
+  geom_line(col=palette2[14], size=1.25, alpha=.8,aes(y=graph_data$graphit,x=graph_data$Dates))+
+  theme_ch() + ylab("Log E. coli")
 
 
 
 ## It would be nice to have an idea how linearity affects the median/mean 
 
-## We need to convert each day of each 2 week period into a numeric value 1:14
-
-# Some code that I thought may work but is actually pretty difficult
+# We need to convert each day of each 2 week period into a numeric value 1:14
 
 # Here's the basic idea:
 as.POSIXlt(bearLBC$Date)[1]$wday
 
 # Vectorizing the above operation
 bearLBC$daysOfBiWeek <- as.POSIXlt(bearLBC$Date)$wday
-
-# Adding 7 to the second week - hard if not undoable, maybe ifelse loop?
-
 
 bearLBC %>% group_by(floor_date(Date,"14 days")) %>% 
   mutate(timediff = difftime(ceiling_date(Date,"1 days"), 
@@ -192,21 +214,19 @@ bearLBC %>% group_by(floor_date(Date,"14 days")) %>%
 bearLBC$daysOfBiWeekA <-ifelse(bearLBC$timediff > 7, bearLBC$daysOfBiWeekA <- bearLBC$daysOfBiWeek + 7, 
        bearLBC$daysOfBiWeekA <- bearLBC$daysOfBiWeek)
 
-
-
 # This is unrealistic but works for x: rep(1:14,60)[1:828], otherwise it is a choice 
 # as to whether we bin monthly or weekly
 
-cbPalette <- viridis(20,option="viridis")
+cbPalette <- viridis(22,option="magma")
 p <- ggplot(data = bearLBC, aes(x = daysOfBiWeekA, y = logEColi, color = Site)) + 
-  scale_colour_manual(values=cbPalette[6:13]) +
-  geom_point(size=3,alpha=.7) +
+  scale_colour_manual(values = cbPalette[4:11]) +
+  geom_point(size=2,alpha=.8) +
   geom_line() +
   facet_wrap(~factor(floor_date(bearLBC$Date,"14 day"))) + 
   theme(
     strip.text.x = element_blank(),
     strip.background = element_blank(),
-    text=element_text(size=18,  family="Georgia"),
+    text=element_text(size=14,  family="Georgia"),
     plot.title = element_text(hjust = 0.5)
   ) +
   ggtitle("BiWeekly Readings of E. coli in the Lower Bear Creek Area") +
@@ -220,10 +240,16 @@ p
 bearpos <- bearLBC %>% arrange(Date) %>%
   group_by(floor_date(Date,"14 day")) %>%
   mutate(positionInCategory=1:n())
-bearpos$positionInCategory
 
 cuts <- which(bearpos$positionInCategory==1)
 diffcuts <- diff(cuts)
+
+cbPalette2 <- viridis(40,option="magma")
+ggplot(data.frame(IntervalsBetweenObs = diffcuts), aes(x=IntervalsBetweenObs)) +
+  geom_histogram(fill=rep(cbPalette2)[1:30]) + 
+  theme_ch() +
+  xlab("Intervals Between Observations") + ylab("Count")
+
 
 medianValues <- rep(bearTSP$medianLogEColi,c(diffcuts,14))
 
